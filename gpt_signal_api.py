@@ -42,7 +42,8 @@ FORWARD_TO_CHANNEL = os.getenv("FORWARD_TO_CHANNEL", "1") == "1"
 CRYPTOPANIC_TOKEN = os.getenv("CRYPTOPANIC_API_TOKEN")
 
 # Storage
-JOURNAL_CSV_PATH = os.getenv("JOURNAL_CSV_PATH", "/mnt/data/trade_journal.csv")
+JOURNAL_CSV_PATH = os.getenv("JOURNAL_CSV_PATH", "./trade_journal.csv")
+os.makedirs(os.path.dirname(JOURNAL_CSV_PATH) or ".", exist_ok=True)
 
 # Runtime state
 _news_cache = {"t": 0, "by_symbol": {}}
@@ -355,6 +356,7 @@ def parse_signal(text: str) -> Dict[str, Any]:
 
 def ensure_csv_headers():
     if not os.path.exists(JOURNAL_CSV_PATH):
+         os.makedirs(os.path.dirname(JOURNAL_CSV_PATH) or ".", exist_ok=True)
         with open(JOURNAL_CSV_PATH, "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f)
             w.writerow(["ts", "symbol", "tf", "setup", "price",
