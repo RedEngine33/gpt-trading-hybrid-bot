@@ -1,60 +1,37 @@
 
-# GPT Trading Hybrid Bot (Flask, OpenAI, Telegram)
+# GPT Trading Hybrid Bot — Option 2 (Strict TV → GPT → Channel)
 
-Automation paths:
-- **TradingView → Server → GPT → Telegram**
-- **Telegram (you) → Server → GPT → Telegram**
+## What changes
+- **ONLY TradingView alerts** post to the public channel.
+- `/tg-webhook` replies **only to you** (no forwarding).
+- `/tv-alert` consumes **metrics JSON** from Pine and constrains GPT to those numbers.
+- Automatic **journal CSV** + optional **journal channel**.
 
 ## Endpoints
-- `GET /` → service info
-- `GET /health` → health check
-- `GET /diag` → env diagnostic flags
-- `POST /gpt-signal` → `{ "text": "BTCUSDT", "context": "optional notes" }`
-- `POST /tv-alert` → from TradingView; JSON must include `{ "secret": "...", "text": "BTCUSDT" }`
-- `POST /tg-webhook` → Telegram bot webhook
-- `GET /ping-tg` → sends a test message to CHANNEL_ID
-- `GET /ping-openai` → tests OpenAI connectivity
+- `GET /health`, `GET /diag`
+- `GET /ping-tg`, `GET /ping-openai`
+- `POST /tv-alert`  ← TradingView webhook (uses metrics)
+- `POST /gpt-signal` ← manual test; does NOT post to channel
 
-## Deploy (Render)
-1. Push repo to GitHub.
-2. Create **Web Service** on Render.
-3. Set **Environment** variables:
-   - `OPENAI_API_KEY` (must start with `sk-`)
-   - `BOT_TOKEN`
-   - `CHANNEL_ID` (like `-1001234567890`)
-   - `ALLOWED_CHAT_ID` (optional, numeric)
-   - `PARSE_MODE` (Markdown or MarkdownV2)
-   - `TV_SECRET` (secret for TradingView)
-4. Ensure **Start Command** is empty (so Procfile is used) **OR** set it to:
+## Deploy on Render
+1. Create a Web Service from this repo/zip.
+2. Environment variables (sample):
+   - `OPENAI_API_KEY` = `sk-...`
+   - `BOT_TOKEN`      = `12345:ABC...`
+   - `CHANNEL_ID`     = `-100xxxxxxxxxx`
+   - `ALLOWED_CHAT_ID`= your telegram user id (optional)
+   - `PARSE_MODE`     = `Markdown`
+   - `TV_SECRET`      = e.g. `abc123!@#` (MUST match Pine)
+   - `FORWARD_TO_CHANNEL` = `0`  (default)
+   - `JOURNAL_CSV_PATH`   = `./trade_journal.csv`
+   - `JOURNAL_CHANNEL_ID` = `-100yyyyyyyyyy` (optional)
+3. Start command: use **Procfile** or set:
    ```
    gunicorn gpt_signal_api:app --bind 0.0.0.0:$PORT
    ```
-5. Deploy.
 
-## Telegram Webhook
-Set your bot webhook to the service URL:
-```
-https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=https://YOUR-RENDER-APP.onrender.com/tg-webhook
-```
-
-## TradingView Alert
-Webhook URL:
-```
-https://YOUR-RENDER-APP.onrender.com/tv-alert
-```
-Message body (JSON):
-```json
-{ "secret": "YOUR_TV_SECRET", "text": "{{ticker}}", "context": "optional note" }
-```
-
-## Test (curl)
-```bash
-curl -X POST "https://YOUR-RENDER-APP.onrender.com/gpt-signal"   -H "Content-Type: application/json"   -d '{"text":"BTCUSDT"}'
-```
-
-If you get `status":"sent"`, check your Telegram channel for the message.
-
-## Notes
-- If Telegram parsing fails, switch to `PARSE_MODE=MarkdownV2`.
-- For rate limits or outages, add retries around Telegram requests.
-- `ALLOWED_CHAT_ID` can restrict who the bot accepts messages from.
+## TradingView
+- Use the Pine in `tv_alerts_option2.pine`.
+- Create alert with **Condition = Any alert() function call**.
+- Webhook URL: `https://YOUR-APP.onrender.com/tv-alert`
+- No message body needed (the script sends JSON via `alert()`).
