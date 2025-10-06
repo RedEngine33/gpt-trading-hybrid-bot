@@ -1,0 +1,20 @@
+
+//@version=5
+indicator("GPT Hybrid Alert Pack", overlay=true)
+
+ema9  = ta.ema(close, 9)
+ema20 = ta.ema(close, 20)
+rsi   = ta.rsi(close, 14)
+
+bull_cross = ta.crossover(ema9, ema20)
+bear_cross = ta.crossunder(ema9, ema20)
+pullback_long  = ema9 > ema20 and close > ema20 and low <= ema20
+pullback_short = ema9 < ema20 and close < ema20 and high >= ema20
+
+plot(ema9,  color=color.new(color.green, 0), title="EMA 9")
+plot(ema20, color=color.new(color.orange,0), title="EMA 20")
+
+alertcondition(bull_cross,  title="Bull Cross (EMA9>EMA20)", message='{ "secret":"YOUR_TV_SECRET", "text":"{{ticker}}", "context":"TF={{interval}}; setup=bull_cross" }')
+alertcondition(bear_cross,  title="Bear Cross (EMA9<EMA20)", message='{ "secret":"YOUR_TV_SECRET", "text":"{{ticker}}", "context":"TF={{interval}}; setup=bear_cross" }')
+alertcondition(pullback_long,  title="Pullback Long to EMA20",  message='{ "secret":"YOUR_TV_SECRET", "text":"{{ticker}}", "context":"TF={{interval}}; setup=pullback_long_to_EMA20" }')
+alertcondition(pullback_short, title="Pullback Short to EMA20", message='{ "secret":"YOUR_TV_SECRET", "text":"{{ticker}}", "context":"TF={{interval}}; setup=pullback_short_to_EMA20" }')
