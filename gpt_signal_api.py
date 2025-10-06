@@ -45,6 +45,7 @@ CRYPTOPANIC_TOKEN = os.getenv("CRYPTOPANIC_API_TOKEN")
 JOURNAL_CSV_PATH = os.getenv("JOURNAL_CSV_PATH", "./trade_journal.csv")
 os.makedirs(os.path.dirname(JOURNAL_CSV_PATH) or ".", exist_ok=True)
 
+
 # Runtime state
 _news_cache = {"t": 0, "by_symbol": {}}
 _last_sig_time: Dict[str, float] = {}
@@ -355,13 +356,17 @@ def parse_signal(text: str) -> Dict[str, Any]:
     return out
 
 def ensure_csv_headers():
+    dirpath = os.path.dirname(JOURNAL_CSV_PATH) or "."
+    os.makedirs(dirpath, exist_ok=True)
     if not os.path.exists(JOURNAL_CSV_PATH):
-         os.makedirs(os.path.dirname(JOURNAL_CSV_PATH) or ".", exist_ok=True)
         with open(JOURNAL_CSV_PATH, "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f)
-            w.writerow(["ts", "symbol", "tf", "setup", "price",
-                        "decision", "entry", "sl", "tp1", "tp2", "rr",
-                        "why", "risk", "funding", "lsr_5m", "liq_recent", "news_score"])
+            w.writerow([
+                "ts", "symbol", "tf", "setup", "price",
+                "decision", "entry", "sl", "tp1", "tp2", "rr",
+                "why", "risk", "funding", "lsr_5m", "liq_recent", "news_score"
+            ])
+
 
 def append_journal(row: Dict[str, Any]):
     ensure_csv_headers()
