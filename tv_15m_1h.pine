@@ -1,0 +1,18 @@
+//@version=5
+indicator("MTF 15m over 1h", overlay=true)
+ema9  = ta.ema(close, 9)
+ema20 = ta.ema(close, 20)
+rsi = ta.rsi(close, 14)
+
+tf_higher = input.timeframe("60", "Higher TF")
+ema9_h = request.security(syminfo.tickerid, tf_higher, ta.ema(close,9))
+ema20_h = request.security(syminfo.tickerid, tf_higher, ta.ema(close,20))
+rsi_h = request.security(syminfo.tickerid, tf_higher, ta.rsi(close,14))
+
+strong_long  = ema9 > ema20 and rsi > 55 and ema9_h > ema20_h and rsi_h > 50
+strong_short = ema9 < ema20 and rsi < 45 and ema9_h < ema20_h and rsi_h < 50
+setup = strong_long ? "strong_long" : strong_short ? "strong_short" : "neutral"
+
+payload = '{"secret":"abc123!@#", "symbol":"%s", "mtf":"swing_15m_over_1h", "metrics":{"tf":"15m","setup":"%s","close":%f,"ema9":%f,"ema20":%f,"rsi":%f}}'
+alert_message = str.format(payload, syminfo.ticker, setup, close, ema9, ema20, rsi)
+alertcondition(true, title="Send JSON", message=alert_message)
