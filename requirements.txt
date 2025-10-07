@@ -1,4 +1,0 @@
-flask
-requests
-openai>=1.0.0
-gunicorn
