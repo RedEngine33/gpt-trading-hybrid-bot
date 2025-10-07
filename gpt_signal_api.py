@@ -296,6 +296,14 @@ def tg_webhook():
         return {"ok": True}
     if ALLOWED_CHAT_ID and str(chat_id) != str(ALLOWED_CHAT_ID):
         return {"ok": True}
+
+    # helper reply MUST be defined BEFORE we use it in photo block
+    def reply(msg: str):
+        try:
+            tg_send_message(chat_id, msg)
+        except Exception:
+            app.logger.exception("reply error")
+
     # --- PHOTO (chart) support ---
     photos = message.get("photo") or []
     if photos:
@@ -333,7 +341,7 @@ def tg_webhook():
             if caption:
                 vision_prompt += f"\nUser context: {caption}"
 
-            # OpenAI Vision (gpt-4o-mini) با image_url
+            # OpenAI Vision
             resp = client.chat.completions.create(
                 model="gpt-4o-mini",
                 temperature=0.2,
@@ -349,7 +357,7 @@ def tg_webhook():
             header = f"🖼️ Vision Analysis{f' for *{coin_guess}*' if coin_guess else ''}:"
             reply(f"{header}\n\n{analysis}")
 
-            # (اختیاری) لاگ به ژورنال CSV
+            # (اختیاری) ثبت در ژورنال
             try:
                 ensure_csv()
                 rows = csv_read_all()
@@ -379,13 +387,9 @@ def tg_webhook():
             app.logger.exception("photo handling error")
             reply("❌ پردازش عکس نشد. لطفاً دوباره بفرست یا کپشن کوتاه اضافه کن.")
             return {"ok": False}, 200
-    text = (message.get("text") or "").strip()
 
-    def reply(msg: str):
-        try:
-            tg_send_message(chat_id, msg)
-        except Exception:
-            app.logger.exception("reply error")
+    # ---- متن و کامندها (مثل قبل) ----
+    text = (message.get("text") or "").strip()
 
     try:
         if text.startswith("/"):
@@ -399,10 +403,7 @@ def tg_webhook():
                 price = float(parts[2]) if len(parts)>=3 else None
 
                 rows = csv_read_all()
-                found = None
-                for r in rows:
-                    if r["trade_id"] == trade_id:
-                        found = r; break
+                found = next((r for r in rows if r["trade_id"] == trade_id), None)
                 if not found:
                     reply(f"Trade not found: {trade_id}")
                     return {"ok": True}
@@ -427,6 +428,7 @@ def tg_webhook():
                 elif cmd == "/status":
                     reply(f"Status | {trade_id}: {found.get('status')}")
 
+                # PnL تقریبی
                 try:
                     fp = float(found.get("fill_price") or 0.0)
                     xp = float(found.get("exit_price") or 0.0)
@@ -455,19 +457,22 @@ def tg_webhook():
             resp = client.chat.completions.create(
                 model="gpt-4o-mini",
                 temperature=0.2,
-                messages=[{"role":"user","content": base_prompt + f"\nSymbol: {text}"}]
+                messages=[{"role":"user","content": base_prompt + f'\nSymbol: {text}'}]
             )
             analysis = (resp.choices[0].message.content or "").strip()
             reply(f"📊 *GPT Analysis for {text.upper()}:*\n\n{analysis}")
             return {"ok": True}
+
         return {"ok": True}
 
     except Exception as e:
         app.logger.exception("tg-webhook error")
-        try: reply(f"❌ Error: {e}")
-        except Exception: pass
+        try:
+            reply(f"❌ Error: {e}")
+        except Exception:
+            pass
         return {"ok": False}, 200
-
+        
 # ===== Stats & Export =====
 @app.get("/stats")
 def stats():
