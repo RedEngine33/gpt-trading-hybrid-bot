@@ -296,7 +296,89 @@ def tg_webhook():
         return {"ok": True}
     if ALLOWED_CHAT_ID and str(chat_id) != str(ALLOWED_CHAT_ID):
         return {"ok": True}
+    # --- PHOTO (chart) support ---
+    photos = message.get("photo") or []
+    if photos:
+        try:
+            # بزرگ‌ترین سایز عکس
+            largest = sorted(photos, key=lambda p: p.get("file_size", 0))[-1]
+            file_id = largest.get("file_id")
 
+            # گرفتن آدرس فایل از تلگرام
+            r = requests.get(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/getFile",
+                params={"file_id": file_id},
+                timeout=20
+            )
+            r.raise_for_status()
+            file_path = (r.json().get("result") or {}).get("file_path")
+            if not file_path:
+                reply("❌ نشد فایل عکس رو بگیرم. لطفاً دوباره بفرست یا کپشن بذار.")
+                return {"ok": True}
+
+            file_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
+            caption = (message.get("caption") or "").strip()
+            coin_guess = caption.split()[0].upper() if caption else ""
+
+            vision_prompt = (
+                "Analyze this trading chart briefly and return exactly 6 lines:\n"
+                "1) Direction (LONG/SHORT/WAIT)\n"
+                "2) Entry range\n"
+                "3) SL zone\n"
+                "4) TP1/TP2\n"
+                "5) RR≈1.5–2\n"
+                "6) One-line risk note.\n"
+                "No emojis. Max 8 lines."
+            )
+            if caption:
+                vision_prompt += f"\nUser context: {caption}"
+
+            # OpenAI Vision (gpt-4o-mini) با image_url
+            resp = client.chat.completions.create(
+                model="gpt-4o-mini",
+                temperature=0.2,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": vision_prompt},
+                        {"type": "image_url", "image_url": {"url": file_url}}
+                    ]
+                }]
+            )
+            analysis = (resp.choices[0].message.content or "").strip()
+            header = f"🖼️ Vision Analysis{f' for *{coin_guess}*' if coin_guess else ''}:"
+            reply(f"{header}\n\n{analysis}")
+
+            # (اختیاری) لاگ به ژورنال CSV
+            try:
+                ensure_csv()
+                rows = csv_read_all()
+                rows.append({
+                    "ts_utc": datetime.utcnow().isoformat(timespec="seconds")+"Z",
+                    "trade_id": gen_trade_id(coin_guess or "IMG", "N/A"),
+                    "source": "tg-webhook-vision",
+                    "symbol": coin_guess or "N/A",
+                    "tf": "N/A",
+                    "direction": "",
+                    "entry_min": "", "entry_max": "", "sl": "",
+                    "tp1": "", "tp2": "",
+                    "rr_target": "",
+                    "ema9": "", "ema20": "", "rsi": "", "atr": "",
+                    "setup": "", "confidence": "",
+                    "status": "new",
+                    "fill_price": "", "exit_price": "",
+                    "pnl_abs": "", "pnl_pct": "", "rr_realized": "", "fees": "",
+                    "posted_message_id": "", "note": f"vision; caption={caption}"
+                })
+                csv_write_all(rows)
+            except Exception:
+                app.logger.exception("journal append failed for vision")
+
+            return {"ok": True}
+        except Exception as e:
+            app.logger.exception("photo handling error")
+            reply("❌ پردازش عکس نشد. لطفاً دوباره بفرست یا کپشن کوتاه اضافه کن.")
+            return {"ok": False}, 200
     text = (message.get("text") or "").strip()
 
     def reply(msg: str):
